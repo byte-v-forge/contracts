@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.common.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+message EventEnvelope {
+  string id = 1;
+  string type = 2;
+  string source = 3;
+  google.protobuf.Timestamp time = 4;
+  string subject = 5;
+  string trace_parent = 6;
+  string correlation_id = 7;
+  google.protobuf.Any payload = 8;
+  map<string, string> extensions = 9;
+}
+
+message EventAck {
+  string id = 1;
+  uint64 sequence = 2;
+  bool duplicate = 3;
+}
+
+message DeadLetterEvent {
+  EventEnvelope original = 1;
+  int32 delivery_attempts = 2;
+  string error_code = 3;
+  string error_message = 4;
+}

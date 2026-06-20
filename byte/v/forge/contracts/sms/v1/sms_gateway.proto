@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.sms.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum SmsOrderStatus {
+  SMS_ORDER_STATUS_UNSPECIFIED = 0;
+  SMS_ORDER_STATUS_PENDING = 1;
+  SMS_ORDER_STATUS_ACTIVE = 2;
+  SMS_ORDER_STATUS_COMPLETED = 3;
+  SMS_ORDER_STATUS_EXPIRED = 4;
+  SMS_ORDER_STATUS_CANCELLED = 5;
+  SMS_ORDER_STATUS_FAILED = 6;
+}
+
+message SmsTarget {
+  string application_key = 1;
+  string country_iso2 = 2;
+}
+
+message PhoneNumber {
+  string e164 = 1;
+  string country_iso2 = 2;
+  string country_calling_code = 3;
+}
+
+message SmsOrder {
+  string order_id = 1;
+  SmsOrderStatus status = 2;
+  SmsTarget target = 3;
+  PhoneNumber number = 4;
+  google.protobuf.Timestamp acquired_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string error_message = 7;
+}
+
+message SmsCode {
+  string order_id = 1;
+  string code = 2;
+  google.protobuf.Timestamp received_at = 3;
+}
+
+message SmsOffer {
+  string offer_id = 1;
+  SmsTarget target = 2;
+  string provider_key = 3;
+  string currency = 4;
+  string price = 5;
+  uint32 stock = 6;
+}
+
+message SmsApplication {
+  string application_key = 1;
+  string display_name = 2;
+}
+
+message AcquireNumberRequest {
+  SmsTarget target = 1;
+  string offer_id = 2;
+}
+
+message AcquireNumberResponse {
+  SmsOrder order = 1;
+}
+
+message ReleaseNumberRequest {
+  string order_id = 1;
+}
+
+message ReleaseNumberResponse {
+  SmsOrder order = 1;
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message GetOrderResponse {
+  SmsOrder order = 1;
+}
+
+message ListOffersRequest {
+  SmsTarget target = 1;
+}
+
+message ListOffersResponse {
+  repeated SmsOffer offers = 1;
+}
+
+message ListApplicationsRequest {}
+
+message ListApplicationsResponse {
+  repeated SmsApplication applications = 1;
+}
+
+message StreamCodesRequest {
+  string order_id = 1;
+}
+
+message StreamCodesResponse {
+  SmsCode code = 1;
+}
+
+service SmsGatewayService {
+  rpc AcquireNumber(AcquireNumberRequest) returns (AcquireNumberResponse);
+  rpc ReleaseNumber(ReleaseNumberRequest) returns (ReleaseNumberResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc ListOffers(ListOffersRequest) returns (ListOffersResponse);
+  rpc ListApplications(ListApplicationsRequest) returns (ListApplicationsResponse);
+  rpc StreamCodes(StreamCodesRequest) returns (stream StreamCodesResponse);
+}

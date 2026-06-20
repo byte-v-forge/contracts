@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.observability.v1;
+
+import "byte/v/forge/contracts/common/v1/eventbus.proto";
+
+enum HotStreamControlKind {
+  HOT_STREAM_CONTROL_KIND_UNSPECIFIED = 0;
+  HOT_STREAM_CONTROL_KIND_CONNECTED = 1;
+  HOT_STREAM_CONTROL_KIND_HEARTBEAT = 2;
+  HOT_STREAM_CONTROL_KIND_RESYNC_REQUIRED = 3;
+  HOT_STREAM_CONTROL_KIND_ERROR = 4;
+}
+
+message HotStreamControl {
+  HotStreamControlKind kind = 1;
+  string message = 2;
+}
+
+message SubscribeRequest {
+  repeated string event_types = 1;
+  string subscriber_id = 2;
+}
+
+message SubscribeResponse {
+  oneof payload {
+    byte.v.forge.contracts.common.v1.EventEnvelope event = 1;
+    HotStreamControl control = 2;
+  }
+}
+
+service HotStreamService {
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}

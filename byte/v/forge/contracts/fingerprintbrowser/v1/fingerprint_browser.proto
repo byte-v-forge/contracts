@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.fingerprintbrowser.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_STARTING = 1;
+  SESSION_STATUS_RUNNING = 2;
+  SESSION_STATUS_STOPPED = 3;
+  SESSION_STATUS_FAILED = 4;
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_QUEUED = 1;
+  TASK_STATUS_RUNNING = 2;
+  TASK_STATUS_SUCCEEDED = 3;
+  TASK_STATUS_FAILED = 4;
+  TASK_STATUS_TIMEOUT = 5;
+}
+
+message Viewport {
+  uint32 width = 1;
+  uint32 height = 2;
+}
+
+message BrowserFingerprint {
+  string user_agent = 1;
+  string accept_language = 2;
+  string timezone = 3;
+  string locale = 4;
+  Viewport viewport = 5;
+}
+
+message BrowserProfile {
+  string browser_kind = 1;
+  BrowserFingerprint fingerprint = 2;
+  string proxy_lease_id = 3;
+}
+
+message BrowserSession {
+  string session_id = 1;
+  SessionStatus status = 2;
+  BrowserProfile profile = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message NavigateCommand {
+  string url = 1;
+}
+
+message ClickCommand {
+  string selector = 1;
+}
+
+message FillCommand {
+  string selector = 1;
+  string value = 2;
+}
+
+message EvaluateCommand {
+  string script = 1;
+}
+
+message ScreenshotCommand {
+  bool full_page = 1;
+}
+
+message WaitCommand {
+  string selector = 1;
+  uint32 timeout_ms = 2;
+}
+
+message BrowserCommand {
+  oneof kind {
+    NavigateCommand navigate = 1;
+    ClickCommand click = 2;
+    FillCommand fill = 3;
+    EvaluateCommand evaluate = 4;
+    ScreenshotCommand screenshot = 5;
+    WaitCommand wait = 6;
+  }
+}
+
+message BrowserTask {
+  string task_id = 1;
+  string session_id = 2;
+  TaskStatus status = 3;
+  repeated BrowserCommand commands = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  string error_message = 7;
+}
+
+message TaskStatusChanged {
+  TaskStatus status = 1;
+  google.protobuf.Timestamp changed_at = 2;
+}
+
+message TaskArtifactProduced {
+  string artifact_id = 1;
+  string content_type = 2;
+  string uri = 3;
+}
+
+message LiveViewSession {
+  string url = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message CreateSessionRequest {
+  BrowserProfile profile = 1;
+}
+
+message CreateSessionResponse {
+  BrowserSession session = 1;
+}
+
+message GetSessionRequest {
+  string session_id = 1;
+}
+
+message GetSessionResponse {
+  BrowserSession session = 1;
+}
+
+message StopSessionRequest {
+  string session_id = 1;
+}
+
+message StopSessionResponse {
+  BrowserSession session = 1;
+}
+
+message CreateTaskRequest {
+  string session_id = 1;
+  repeated BrowserCommand commands = 2;
+}
+
+message CreateTaskResponse {
+  BrowserTask task = 1;
+}
+
+message GetTaskRequest {
+  string task_id = 1;
+}
+
+message GetTaskResponse {
+  BrowserTask task = 1;
+}
+
+message StreamTaskEventsRequest {
+  string task_id = 1;
+}
+
+message StreamTaskEventsResponse {
+  string task_id = 1;
+  oneof kind {
+    TaskStatusChanged status_changed = 2;
+    TaskArtifactProduced artifact = 3;
+  }
+}
+
+message CreateLiveViewRequest {
+  string session_id = 1;
+}
+
+message CreateLiveViewResponse {
+  LiveViewSession live_view = 1;
+}
+
+service FingerprintBrowserService {
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc StopSession(StopSessionRequest) returns (StopSessionResponse);
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  rpc StreamTaskEvents(StreamTaskEventsRequest) returns (stream StreamTaskEventsResponse);
+  rpc CreateLiveView(CreateLiveViewRequest) returns (CreateLiveViewResponse);
+}

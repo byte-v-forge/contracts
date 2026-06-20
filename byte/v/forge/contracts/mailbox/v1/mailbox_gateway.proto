@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.mailbox.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum MailboxAuthStatus {
+  MAILBOX_AUTH_STATUS_UNSPECIFIED = 0;
+  MAILBOX_AUTH_STATUS_AUTHENTICATED = 1;
+  MAILBOX_AUTH_STATUS_EXPIRED = 2;
+  MAILBOX_AUTH_STATUS_REVOKED = 3;
+  MAILBOX_AUTH_STATUS_PENDING = 4;
+}
+
+enum EmailSignalKind {
+  EMAIL_SIGNAL_KIND_UNSPECIFIED = 0;
+  EMAIL_SIGNAL_KIND_OTP = 1;
+  EMAIL_SIGNAL_KIND_MAGIC_LINK = 2;
+  EMAIL_SIGNAL_KIND_VERIFICATION_LINK = 3;
+}
+
+message Mailbox {
+  string mailbox_id = 1;
+  string email_address = 2;
+  string provider_key = 3;
+  MailboxAuthStatus auth_status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp last_synced_at = 6;
+}
+
+message EmailSignal {
+  string message_id = 1;
+  EmailSignalKind kind = 2;
+  string value = 3;
+  double confidence = 4;
+  string evidence_preview = 5;
+}
+
+message InboxMessage {
+  string message_id = 1;
+  string mailbox_id = 2;
+  string subject = 3;
+  string from_address = 4;
+  google.protobuf.Timestamp received_at = 5;
+  repeated EmailSignal signals = 6;
+}
+
+message RegisterMailboxRequest {
+  string email_address = 1;
+  string provider_key = 2;
+}
+
+message RegisterMailboxResponse {
+  Mailbox mailbox = 1;
+}
+
+message GetMailboxRequest {
+  string mailbox_id = 1;
+}
+
+message GetMailboxResponse {
+  Mailbox mailbox = 1;
+}
+
+message ListMailboxesRequest {
+  string provider_key = 1;
+  uint32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListMailboxesResponse {
+  repeated Mailbox mailboxes = 1;
+  string next_page_token = 2;
+}
+
+message DeleteMailboxRequest {
+  string mailbox_id = 1;
+}
+
+message DeleteMailboxResponse {}
+
+message ListInboxMessagesRequest {
+  string mailbox_id = 1;
+  uint32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListInboxMessagesResponse {
+  repeated InboxMessage messages = 1;
+  string next_page_token = 2;
+}
+
+message StreamSignalsRequest {
+  string mailbox_id = 1;
+  repeated EmailSignalKind kinds = 2;
+}
+
+message StreamSignalsResponse {
+  EmailSignal signal = 1;
+}
+
+service MailboxGatewayService {
+  rpc RegisterMailbox(RegisterMailboxRequest) returns (RegisterMailboxResponse);
+  rpc GetMailbox(GetMailboxRequest) returns (GetMailboxResponse);
+  rpc ListMailboxes(ListMailboxesRequest) returns (ListMailboxesResponse);
+  rpc DeleteMailbox(DeleteMailboxRequest) returns (DeleteMailboxResponse);
+  rpc ListInboxMessages(ListInboxMessagesRequest) returns (ListInboxMessagesResponse);
+  rpc StreamSignals(StreamSignalsRequest) returns (stream StreamSignalsResponse);
+}

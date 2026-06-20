@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.wa.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum WaAccountStatus {
+  WA_ACCOUNT_STATUS_UNSPECIFIED = 0;
+  WA_ACCOUNT_STATUS_REGISTERING = 1;
+  WA_ACCOUNT_STATUS_ACTIVE = 2;
+  WA_ACCOUNT_STATUS_BANNED = 3;
+  WA_ACCOUNT_STATUS_ARCHIVED = 4;
+}
+
+message WaAccount {
+  string account_id = 1;
+  string phone_e164 = 2;
+  WaAccountStatus status = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message OutgoingMessage {
+  string account_id = 1;
+  string to_phone_e164 = 2;
+  string text = 3;
+}
+
+message IncomingMessage {
+  string message_id = 1;
+  string account_id = 2;
+  string from_phone_e164 = 3;
+  string text = 4;
+  google.protobuf.Timestamp received_at = 5;
+}
+
+message CreateAccountRequest {
+  string phone_e164 = 1;
+}
+
+message CreateAccountResponse {
+  WaAccount account = 1;
+}
+
+message GetAccountRequest {
+  string account_id = 1;
+}
+
+message GetAccountResponse {
+  WaAccount account = 1;
+}
+
+message DeleteAccountRequest {
+  string account_id = 1;
+}
+
+message DeleteAccountResponse {}
+
+message CompleteRegistrationRequest {
+  string account_id = 1;
+  string otp_code = 2;
+}
+
+message CompleteRegistrationResponse {
+  WaAccount account = 1;
+}
+
+message SendMessageRequest {
+  OutgoingMessage message = 1;
+}
+
+message SendMessageResponse {
+  string message_id = 1;
+  google.protobuf.Timestamp sent_at = 2;
+}
+
+message StreamMessagesRequest {
+  string account_id = 1;
+}
+
+message StreamMessagesResponse {
+  IncomingMessage message = 1;
+}
+
+service WaSessionService {
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+  rpc CompleteRegistration(CompleteRegistrationRequest) returns (CompleteRegistrationResponse);
+}
+
+service WaMessagingService {
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc StreamMessages(StreamMessagesRequest) returns (stream StreamMessagesResponse);
+}

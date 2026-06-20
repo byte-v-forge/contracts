@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.proxyruntime.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ProxyProtocol {
+  PROXY_PROTOCOL_UNSPECIFIED = 0;
+  PROXY_PROTOCOL_HTTP = 1;
+  PROXY_PROTOCOL_SOCKS5 = 2;
+}
+
+enum LeaseStatus {
+  LEASE_STATUS_UNSPECIFIED = 0;
+  LEASE_STATUS_ACTIVE = 1;
+  LEASE_STATUS_EXPIRED = 2;
+  LEASE_STATUS_RELEASED = 3;
+  LEASE_STATUS_FAILED = 4;
+}
+
+enum ExitRiskLevel {
+  EXIT_RISK_LEVEL_UNSPECIFIED = 0;
+  EXIT_RISK_LEVEL_LOW = 1;
+  EXIT_RISK_LEVEL_MEDIUM = 2;
+  EXIT_RISK_LEVEL_HIGH = 3;
+  EXIT_RISK_LEVEL_UNKNOWN = 4;
+}
+
+message LeasePolicy {
+  string country_code = 1;
+  string region = 2;
+  google.protobuf.Duration sticky_ttl = 3;
+}
+
+message ProxyEndpoint {
+  ProxyProtocol protocol = 1;
+  string host = 2;
+  uint32 port = 3;
+  string username = 4;
+  string password = 5;
+}
+
+message ExitInfo {
+  string ip = 1;
+  string country_code = 2;
+  string region = 3;
+  string city = 4;
+}
+
+message ExitRisk {
+  ExitRiskLevel level = 1;
+  double score = 2;
+  google.protobuf.Timestamp checked_at = 3;
+}
+
+message ProxyLease {
+  string lease_id = 1;
+  string purpose = 2;
+  LeaseStatus status = 3;
+  ProxyEndpoint endpoint = 4;
+  ExitInfo exit = 5;
+  google.protobuf.Timestamp acquired_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  string error_message = 8;
+}
+
+message ExitCheckSnapshot {
+  string lease_id = 1;
+  ExitInfo exit = 2;
+  ExitRisk risk = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GatewayStatus {
+  bool ready = 1;
+  string version = 2;
+}
+
+message AcquireLeaseRequest {
+  string purpose = 1;
+  LeasePolicy policy = 2;
+}
+
+message AcquireLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message ReleaseLeaseRequest {
+  string lease_id = 1;
+}
+
+message ReleaseLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message GetLeaseRequest {
+  string lease_id = 1;
+}
+
+message GetLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message GetExitCheckRequest {
+  string lease_id = 1;
+}
+
+message GetExitCheckResponse {
+  ExitCheckSnapshot snapshot = 1;
+}
+
+message GetGatewayStatusRequest {}
+
+message GetGatewayStatusResponse {
+  GatewayStatus status = 1;
+}
+
+service ProxyGatewayService {
+  rpc AcquireLease(AcquireLeaseRequest) returns (AcquireLeaseResponse);
+  rpc ReleaseLease(ReleaseLeaseRequest) returns (ReleaseLeaseResponse);
+  rpc GetLease(GetLeaseRequest) returns (GetLeaseResponse);
+  rpc GetExitCheck(GetExitCheckRequest) returns (GetExitCheckResponse);
+  rpc GetGatewayStatus(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
+}

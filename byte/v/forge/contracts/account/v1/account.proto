@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.account.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;
+  ACCOUNT_STATUS_SUSPENDED = 2;
+  ACCOUNT_STATUS_ARCHIVED = 3;
+}
+
+enum CredentialKind {
+  CREDENTIAL_KIND_UNSPECIFIED = 0;
+  CREDENTIAL_KIND_PASSWORD = 1;
+  CREDENTIAL_KIND_OAUTH = 2;
+  CREDENTIAL_KIND_COOKIE = 3;
+  CREDENTIAL_KIND_PASSKEY = 4;
+}
+
+enum CredentialStatus {
+  CREDENTIAL_STATUS_UNSPECIFIED = 0;
+  CREDENTIAL_STATUS_ACTIVE = 1;
+  CREDENTIAL_STATUS_EXPIRED = 2;
+  CREDENTIAL_STATUS_REVOKED = 3;
+  CREDENTIAL_STATUS_MISSING = 4;
+}
+
+message AccountSubject {
+  oneof identity {
+    string email = 1;
+    string phone_e164 = 2;
+    string external_id = 3;
+  }
+}
+
+message CredentialState {
+  CredentialKind kind = 1;
+  CredentialStatus status = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message Account {
+  string account_id = 1;
+  string source = 2;
+  AccountSubject subject = 3;
+  AccountStatus status = 4;
+  CredentialState credential = 5;
+  map<string, string> labels = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message AccountAction {
+  string action_id = 1;
+  string display_name = 2;
+  string source = 3;
+  string workflow_id = 4;
+}
+
+message CreateAccountRequest {
+  string source = 1;
+  AccountSubject subject = 2;
+  map<string, string> labels = 3;
+}
+
+message CreateAccountResponse {
+  Account account = 1;
+}
+
+message GetAccountRequest {
+  string account_id = 1;
+}
+
+message GetAccountResponse {
+  Account account = 1;
+}
+
+message ListAccountsRequest {
+  string source = 1;
+  AccountStatus status = 2;
+  uint32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+  string next_page_token = 2;
+}
+
+message UpdateAccountRequest {
+  string account_id = 1;
+  AccountStatus status = 2;
+  map<string, string> labels = 3;
+}
+
+message UpdateAccountResponse {
+  Account account = 1;
+}
+
+message DeleteAccountRequest {
+  string account_id = 1;
+}
+
+message DeleteAccountResponse {}
+
+message ListAccountActionsRequest {
+  string source = 1;
+}
+
+message ListAccountActionsResponse {
+  repeated AccountAction actions = 1;
+}
+
+service AccountService {
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+  rpc ListAccountActions(ListAccountActionsRequest) returns (ListAccountActionsResponse);
+}
