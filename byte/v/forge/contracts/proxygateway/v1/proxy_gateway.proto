@@ -1,0 +1,252 @@
+syntax = "proto3";
+
+package byte.v.forge.contracts.proxygateway.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+
+// PoolKind is the upstream pool category the lease is served from. Aligns
+// with the four product types every major residential / mobile / ISP /
+// datacenter proxy provider exposes (BrightData, IPRoyal, Oxylabs,
+// Smartproxy, SOAX).
+enum PoolKind {
+  POOL_KIND_UNSPECIFIED = 0;
+  POOL_KIND_RESIDENTIAL = 1;
+  POOL_KIND_ISP = 2;
+  POOL_KIND_DATACENTER = 3;
+  POOL_KIND_MOBILE = 4;
+}
+
+// ProxyProtocol is the transport protocol exposed on the backconnect
+// gateway endpoint.
+enum ProxyProtocol {
+  PROXY_PROTOCOL_UNSPECIFIED = 0;
+  PROXY_PROTOCOL_HTTP = 1;
+  PROXY_PROTOCOL_HTTPS = 2;
+  PROXY_PROTOCOL_SOCKS5 = 3;
+}
+
+// LeaseStatus is the lifecycle state of a ProxyLease.
+enum LeaseStatus {
+  LEASE_STATUS_UNSPECIFIED = 0;
+  LEASE_STATUS_ACTIVE = 1;
+  LEASE_STATUS_EXPIRED = 2;
+  LEASE_STATUS_RELEASED = 3;
+  LEASE_STATUS_FAILED = 4;
+}
+
+// SessionRotation makes the rotation decision explicit instead of inferring
+// from a non-zero sticky_ttl.
+enum SessionRotation {
+  SESSION_ROTATION_UNSPECIFIED = 0;
+  // Per-request rotation: every outbound request can pick a new exit IP.
+  SESSION_ROTATION_ROTATING = 1;
+  // Same exit IP held until sticky_ttl elapses or the IP goes offline.
+  SESSION_ROTATION_STICKY = 2;
+}
+
+// KillswitchMode controls what happens when a sticky exit IP becomes
+// unreachable mid-session. Maps to IPRoyal-style killswitch flag.
+enum KillswitchMode {
+  KILLSWITCH_MODE_UNSPECIFIED = 0;
+  // Silently replace the IP (default in most providers).
+  KILLSWITCH_MODE_DISABLED = 1;
+  // Refuse the request (HTTP 410) instead of rotating, preserving identity
+  // for callers that cannot tolerate an undetected IP change.
+  KILLSWITCH_MODE_ENABLED = 2;
+}
+
+// ExitRiskLevel summarizes the abuse / cleanliness profile of the exit IP.
+enum ExitRiskLevel {
+  EXIT_RISK_LEVEL_UNSPECIFIED = 0;
+  EXIT_RISK_LEVEL_LOW = 1;
+  EXIT_RISK_LEVEL_MEDIUM = 2;
+  EXIT_RISK_LEVEL_HIGH = 3;
+  EXIT_RISK_LEVEL_UNKNOWN = 4;
+}
+
+// GeoTarget expresses geographic constraints on the exit IP. Five-dimension
+// model (country / state / city / postal / ASN) shared by BrightData,
+// IPRoyal, Oxylabs, Smartproxy, SOAX. Any field left empty (or asn = 0) is
+// unconstrained.
+message GeoTarget {
+  // country_code is ISO 3166-1 alpha-2 (e.g. "US"). Special "EU" macro is
+  // documented per provider; consumers must check zone capability.
+  string country_code = 1;
+  // state is a first-level subdivision name or code (e.g. "California").
+  string state = 2;
+  string city = 3;
+  // postal_code is the ZIP / postal code at the exit.
+  string postal_code = 4;
+  // asn is the autonomous system number of the exit ISP. 0 means
+  // unconstrained.
+  uint32 asn = 5;
+}
+
+// SessionPolicy describes how the caller wants the underlying provider
+// session managed. Inspired by IPRoyal session/lifetime/killswitch and the
+// Resin (github.com/Resinat/Resin) Account model: callers that pass a
+// stable business_identity get the same outbound IP across requests, and
+// upstream node failures fail over to another node that preserves the
+// identity-to-IP binding.
+message SessionPolicy {
+  SessionRotation rotation = 1;
+  // sticky_ttl is honored only when rotation = STICKY. Provider hard limits
+  // typically range 1s to 7d; consumers must respect the zone capability.
+  google.protobuf.Duration sticky_ttl = 2;
+  KillswitchMode killswitch = 3;
+  // business_identity is a caller-supplied stable identifier used as the
+  // sticky anchor (Resin Account model). Same identity ⇒ same exit IP;
+  // node-level failures fail over to another node bound to that identity.
+  // Empty means the system assigns an opaque session id.
+  string business_identity = 4;
+}
+
+// ProxyEndpoint is the backconnect gateway endpoint. Targeting and session
+// parameters are encoded out-of-band (in ProxyCredentials or in
+// SessionPolicy), not embedded in the host string.
+message ProxyEndpoint {
+  ProxyProtocol protocol = 1;
+  string host = 2;
+  uint32 port = 3;
+}
+
+// ProxyCredentials carries short-lived authentication for the gateway
+// endpoint. Issued by GetLeaseCredentials and never returned in regular
+// lease responses.
+message ProxyCredentials {
+  string username = 1;
+  string password = 2;
+  google.protobuf.Timestamp expire_time = 3;
+}
+
+// ExitInfo is the observed network position of the assigned exit IP.
+message ExitInfo {
+  string ip = 1;
+  // country_code is ISO 3166-1 alpha-2.
+  string country_code = 2;
+  string state = 3;
+  string city = 4;
+  // asn is the autonomous system number of the exit ISP.
+  uint32 asn = 5;
+  // isp_name is the human-readable ISP name (best-effort).
+  string isp_name = 6;
+}
+
+// ExitRisk is the gateway's assessment of the exit IP's reputation.
+message ExitRisk {
+  ExitRiskLevel level = 1;
+  // score is a 0.0-1.0 normalized risk score; provider-defined semantics.
+  double score = 2;
+  google.protobuf.Timestamp check_time = 3;
+  // latency_ms is the last active-probe latency to a canary endpoint.
+  uint32 latency_ms = 4;
+}
+
+// ProxyLease is an active or terminal proxy reservation issued for a
+// caller. The lease binds a Zone (pool + billing context) to the
+// caller-requested Geo and Session policy.
+message ProxyLease {
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // zone_uid identifies the Zone (admin-plane configured pool / billing
+  // bundle) this lease draws from. Cross-resource reference.
+  string zone_uid = 2;
+  // purpose is the caller-supplied lease label, free-form.
+  string purpose = 3;
+  LeaseStatus status = 4;
+  // pool_kind is materialized from the Zone the lease draws from; surfaced
+  // here for caller convenience.
+  PoolKind pool_kind = 5;
+  // geo carries the caller's geographic constraints honored by the lease.
+  GeoTarget geo = 6;
+  SessionPolicy session = 7;
+  // endpoint is the backconnect gateway address. Authentication is fetched
+  // separately via GetLeaseCredentials.
+  ProxyEndpoint endpoint = 8;
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp expire_time = 10;
+  // error is populated when status = LEASE_STATUS_FAILED.
+  google.rpc.Status error = 11;
+}
+
+// ExitCheckSnapshot is the most recent exit-IP probe for a lease.
+message ExitCheckSnapshot {
+  // lease_uid identifies the owning ProxyLease.
+  string lease_uid = 1;
+  ExitInfo exit = 2;
+  ExitRisk risk = 3;
+  google.protobuf.Timestamp update_time = 4;
+}
+
+// GatewayStatus exposes coarse readiness for callers.
+message GatewayStatus {
+  bool ready = 1;
+  string version = 2;
+}
+
+message AcquireLeaseRequest {
+  // zone_uid selects the Zone (admin-plane configured pool / billing
+  // bundle). Required.
+  string zone_uid = 1;
+  string purpose = 2;
+  // geo optionally overrides the zone's default geo constraints.
+  GeoTarget geo = 3;
+  // session optionally overrides the zone's default session policy.
+  SessionPolicy session = 4;
+}
+
+message AcquireLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message ReleaseLeaseRequest {
+  // uid identifies the ProxyLease to release.
+  string uid = 1;
+}
+
+message ReleaseLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message GetLeaseRequest {
+  string uid = 1;
+}
+
+message GetLeaseResponse {
+  ProxyLease lease = 1;
+}
+
+message GetLeaseCredentialsRequest {
+  // uid identifies the ProxyLease whose credentials are requested.
+  string uid = 1;
+}
+
+message GetLeaseCredentialsResponse {
+  ProxyCredentials credentials = 1;
+}
+
+message GetExitCheckRequest {
+  // uid identifies the ProxyLease whose exit check is requested.
+  string uid = 1;
+}
+
+message GetExitCheckResponse {
+  ExitCheckSnapshot snapshot = 1;
+}
+
+message GetGatewayStatusRequest {}
+
+message GetGatewayStatusResponse {
+  GatewayStatus status = 1;
+}
+
+service ProxyGatewayService {
+  rpc AcquireLease(AcquireLeaseRequest) returns (AcquireLeaseResponse);
+  rpc ReleaseLease(ReleaseLeaseRequest) returns (ReleaseLeaseResponse);
+  rpc GetLease(GetLeaseRequest) returns (GetLeaseResponse);
+  rpc GetLeaseCredentials(GetLeaseCredentialsRequest) returns (GetLeaseCredentialsResponse);
+  rpc GetExitCheck(GetExitCheckRequest) returns (GetExitCheckResponse);
+  rpc GetGatewayStatus(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
+}
