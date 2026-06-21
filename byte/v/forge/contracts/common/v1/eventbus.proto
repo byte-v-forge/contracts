@@ -5,24 +5,43 @@ package byte.v.forge.contracts.common.v1;
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
+// EventEnvelope wraps a domain event on the bus. Follows CloudEvents v1.0
+// shape: stable id/source/subject/type/time/data fields are CloudEvents
+// standard names and must not be renamed.
 message EventEnvelope {
+  // CloudEvents id. Unique within the source. Required.
   string id = 1;
+  // CloudEvents type. e.g. "byte.v.forge.account.created.v1".
   string type = 2;
+  // CloudEvents source. URI identifying the producer.
   string source = 3;
+  // CloudEvents time. Producer-side timestamp.
   google.protobuf.Timestamp time = 4;
+  // CloudEvents subject. Identifies the resource the event is about.
   string subject = 5;
+  // W3C trace context traceparent header for distributed tracing.
   string trace_parent = 6;
+  // Caller-supplied correlation id; opaque to the bus.
   string correlation_id = 7;
-  google.protobuf.Any payload = 8;
+  // CloudEvents data, carrying the versioned domain payload.
+  google.protobuf.Any data = 8;
+  // CloudEvents extension attributes.
   map<string, string> extensions = 9;
 }
 
+// EventAck is returned by consumers on at-least-once delivery to acknowledge
+// processing of an EventEnvelope.
 message EventAck {
-  string id = 1;
+  // event_id is the EventEnvelope.id being acknowledged.
+  string event_id = 1;
+  // sequence is the broker-assigned ordering position, when applicable.
   uint64 sequence = 2;
+  // duplicate is true when the consumer detected the event was already
+  // processed (idempotency key match).
   bool duplicate = 3;
 }
 
+// DeadLetterEvent reports an event that exhausted its delivery attempts.
 message DeadLetterEvent {
   EventEnvelope original = 1;
   int32 delivery_attempts = 2;

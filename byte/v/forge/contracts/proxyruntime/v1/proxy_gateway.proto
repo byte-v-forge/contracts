@@ -4,6 +4,7 @@ package byte.v.forge.contracts.proxyruntime.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
 
 enum ProxyProtocol {
   PROXY_PROTOCOL_UNSPECIFIED = 0;
@@ -28,21 +29,30 @@ enum ExitRiskLevel {
 }
 
 message LeasePolicy {
+  // country_code is the requested egress country (ISO 3166-1 alpha-2).
   string country_code = 1;
   string region = 2;
   google.protobuf.Duration sticky_ttl = 3;
 }
 
+// ProxyEndpoint exposes only the connection coordinates. Credentials are
+// fetched via GetLeaseCredentials.
 message ProxyEndpoint {
   ProxyProtocol protocol = 1;
   string host = 2;
   uint32 port = 3;
-  string username = 4;
-  string password = 5;
+}
+
+// ProxyCredentials carries short-lived credentials for a lease's endpoint.
+message ProxyCredentials {
+  string username = 1;
+  string password = 2;
+  google.protobuf.Timestamp expire_time = 3;
 }
 
 message ExitInfo {
   string ip = 1;
+  // country_code is the observed egress country (ISO 3166-1 alpha-2).
   string country_code = 2;
   string region = 3;
   string city = 4;
@@ -51,25 +61,29 @@ message ExitInfo {
 message ExitRisk {
   ExitRiskLevel level = 1;
   double score = 2;
-  google.protobuf.Timestamp checked_at = 3;
+  google.protobuf.Timestamp check_time = 3;
 }
 
+// ProxyLease is an active or terminal proxy reservation owned by a caller.
 message ProxyLease {
-  string lease_id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // purpose is the caller-supplied lease label, free-form.
   string purpose = 2;
   LeaseStatus status = 3;
   ProxyEndpoint endpoint = 4;
-  ExitInfo exit = 5;
-  google.protobuf.Timestamp acquired_at = 6;
-  google.protobuf.Timestamp expires_at = 7;
-  string error_message = 8;
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp expire_time = 6;
+  // error is populated when status = LEASE_STATUS_FAILED.
+  google.rpc.Status error = 7;
 }
 
 message ExitCheckSnapshot {
-  string lease_id = 1;
+  // lease_uid is the ProxyLease.uid the snapshot belongs to.
+  string lease_uid = 1;
   ExitInfo exit = 2;
   ExitRisk risk = 3;
-  google.protobuf.Timestamp updated_at = 4;
+  google.protobuf.Timestamp update_time = 4;
 }
 
 message GatewayStatus {
@@ -87,7 +101,8 @@ message AcquireLeaseResponse {
 }
 
 message ReleaseLeaseRequest {
-  string lease_id = 1;
+  // uid identifies the ProxyLease to release.
+  string uid = 1;
 }
 
 message ReleaseLeaseResponse {
@@ -95,15 +110,25 @@ message ReleaseLeaseResponse {
 }
 
 message GetLeaseRequest {
-  string lease_id = 1;
+  string uid = 1;
 }
 
 message GetLeaseResponse {
   ProxyLease lease = 1;
 }
 
+message GetLeaseCredentialsRequest {
+  // uid identifies the ProxyLease whose credentials are requested.
+  string uid = 1;
+}
+
+message GetLeaseCredentialsResponse {
+  ProxyCredentials credentials = 1;
+}
+
 message GetExitCheckRequest {
-  string lease_id = 1;
+  // uid identifies the ProxyLease whose exit check is requested.
+  string uid = 1;
 }
 
 message GetExitCheckResponse {
@@ -120,6 +145,7 @@ service ProxyGatewayService {
   rpc AcquireLease(AcquireLeaseRequest) returns (AcquireLeaseResponse);
   rpc ReleaseLease(ReleaseLeaseRequest) returns (ReleaseLeaseResponse);
   rpc GetLease(GetLeaseRequest) returns (GetLeaseResponse);
+  rpc GetLeaseCredentials(GetLeaseCredentialsRequest) returns (GetLeaseCredentialsResponse);
   rpc GetExitCheck(GetExitCheckRequest) returns (GetExitCheckResponse);
   rpc GetGatewayStatus(GetGatewayStatusRequest) returns (GetGatewayStatusResponse);
 }

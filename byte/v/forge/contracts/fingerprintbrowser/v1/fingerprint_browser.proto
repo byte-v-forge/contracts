@@ -2,7 +2,16 @@ syntax = "proto3";
 
 package byte.v.forge.contracts.fingerprintbrowser.v1;
 
+import "byte/v/forge/contracts/common/v1/common.proto";
 import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+
+enum BrowserKind {
+  BROWSER_KIND_UNSPECIFIED = 0;
+  BROWSER_KIND_CHROMIUM = 1;
+  BROWSER_KIND_FIREFOX = 2;
+  BROWSER_KIND_WEBKIT = 3;
+}
 
 enum SessionStatus {
   SESSION_STATUS_UNSPECIFIED = 0;
@@ -35,17 +44,21 @@ message BrowserFingerprint {
 }
 
 message BrowserProfile {
-  string browser_kind = 1;
+  BrowserKind browser_kind = 1;
   BrowserFingerprint fingerprint = 2;
-  string proxy_lease_id = 3;
+  // proxy_lease_uid references a ProxyLease in proxyruntime.v1.
+  string proxy_lease_uid = 3;
 }
 
+// BrowserSession is a long-running fingerprinted browser instance running on
+// a remote host.
 message BrowserSession {
-  string session_id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   SessionStatus status = 2;
   BrowserProfile profile = 3;
-  google.protobuf.Timestamp created_at = 4;
-  google.protobuf.Timestamp expires_at = 5;
+  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp expire_time = 5;
 }
 
 message NavigateCommand {
@@ -85,30 +98,33 @@ message BrowserCommand {
   }
 }
 
+// BrowserTask is a sequence of commands executed against a BrowserSession.
 message BrowserTask {
-  string task_id = 1;
-  string session_id = 2;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // session_uid references the owning BrowserSession.
+  string session_uid = 2;
   TaskStatus status = 3;
   repeated BrowserCommand commands = 4;
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp finished_at = 6;
-  string error_message = 7;
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp finish_time = 6;
+  // error is populated when status = TASK_STATUS_FAILED.
+  google.rpc.Status error = 7;
 }
 
 message TaskStatusChanged {
   TaskStatus status = 1;
-  google.protobuf.Timestamp changed_at = 2;
+  google.protobuf.Timestamp change_time = 2;
 }
 
 message TaskArtifactProduced {
-  string artifact_id = 1;
-  string content_type = 2;
-  string uri = 3;
+  byte.v.forge.contracts.common.v1.ArtifactRef artifact = 1;
 }
 
+// LiveViewSession is a short-lived browser viewer for human supervision.
 message LiveViewSession {
   string url = 1;
-  google.protobuf.Timestamp expires_at = 2;
+  google.protobuf.Timestamp expire_time = 2;
 }
 
 message CreateSessionRequest {
@@ -120,7 +136,7 @@ message CreateSessionResponse {
 }
 
 message GetSessionRequest {
-  string session_id = 1;
+  string uid = 1;
 }
 
 message GetSessionResponse {
@@ -128,7 +144,7 @@ message GetSessionResponse {
 }
 
 message StopSessionRequest {
-  string session_id = 1;
+  string uid = 1;
 }
 
 message StopSessionResponse {
@@ -136,7 +152,8 @@ message StopSessionResponse {
 }
 
 message CreateTaskRequest {
-  string session_id = 1;
+  // session_uid references the BrowserSession to execute against.
+  string session_uid = 1;
   repeated BrowserCommand commands = 2;
 }
 
@@ -145,7 +162,7 @@ message CreateTaskResponse {
 }
 
 message GetTaskRequest {
-  string task_id = 1;
+  string uid = 1;
 }
 
 message GetTaskResponse {
@@ -153,11 +170,12 @@ message GetTaskResponse {
 }
 
 message StreamTaskEventsRequest {
-  string task_id = 1;
+  // task_uid references the BrowserTask to stream events for.
+  string task_uid = 1;
 }
 
 message StreamTaskEventsResponse {
-  string task_id = 1;
+  string task_uid = 1;
   oneof kind {
     TaskStatusChanged status_changed = 2;
     TaskArtifactProduced artifact = 3;
@@ -165,7 +183,8 @@ message StreamTaskEventsResponse {
 }
 
 message CreateLiveViewRequest {
-  string session_id = 1;
+  // session_uid references the BrowserSession to attach the view to.
+  string session_uid = 1;
 }
 
 message CreateLiveViewResponse {

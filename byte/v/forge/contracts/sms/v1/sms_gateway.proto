@@ -3,6 +3,8 @@ syntax = "proto3";
 package byte.v.forge.contracts.sms.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+import "google/type/money.proto";
 
 enum SmsOrderStatus {
   SMS_ORDER_STATUS_UNSPECIFIED = 0;
@@ -14,50 +16,69 @@ enum SmsOrderStatus {
   SMS_ORDER_STATUS_FAILED = 6;
 }
 
+// SmsTarget identifies the destination application and country for an SMS
+// number purchase.
 message SmsTarget {
+  // application_key is the stable catalog key (e.g. "telegram", "whatsapp").
   string application_key = 1;
-  string country_iso2 = 2;
+  // country_code is the requested country (ISO 3166-1 alpha-2).
+  string country_code = 2;
 }
 
 message PhoneNumber {
+  // e164 is the canonical E.164 representation, including leading "+".
   string e164 = 1;
-  string country_iso2 = 2;
-  string country_calling_code = 3;
+  // country_code is the number's country (ISO 3166-1 alpha-2).
+  string country_code = 2;
+  // calling_code is the country calling code without the "+" prefix.
+  string calling_code = 3;
 }
 
+// SmsOrder is a purchase reserving a phone number for receiving SMS codes.
 message SmsOrder {
-  string order_id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   SmsOrderStatus status = 2;
   SmsTarget target = 3;
   PhoneNumber number = 4;
-  google.protobuf.Timestamp acquired_at = 5;
-  google.protobuf.Timestamp expires_at = 6;
-  string error_message = 7;
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp expire_time = 6;
+  // error is populated when status = SMS_ORDER_STATUS_FAILED.
+  google.rpc.Status error = 7;
 }
 
+// SmsCode is a verification code observed on a reserved number.
 message SmsCode {
-  string order_id = 1;
+  // order_uid references the owning SmsOrder.
+  string order_uid = 1;
   string code = 2;
-  google.protobuf.Timestamp received_at = 3;
+  google.protobuf.Timestamp receive_time = 3;
 }
 
+// SmsOffer is a catalog entry from a specific provider for a target.
 message SmsOffer {
-  string offer_id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   SmsTarget target = 2;
-  string provider_key = 3;
-  string currency = 4;
-  string price = 5;
-  uint32 stock = 6;
+  // provider identifies the upstream SMS provider.
+  string provider = 3;
+  // price is the per-order price quoted by the provider.
+  google.type.Money price = 4;
+  uint32 stock = 5;
 }
 
+// SmsApplication is a catalog descriptor for an application receivable on
+// the SMS gateway.
 message SmsApplication {
-  string application_key = 1;
+  // key is the stable catalog key (e.g. "telegram", "whatsapp").
+  string key = 1;
   string display_name = 2;
 }
 
 message AcquireNumberRequest {
   SmsTarget target = 1;
-  string offer_id = 2;
+  // offer_uid selects a specific provider offer.
+  string offer_uid = 2;
 }
 
 message AcquireNumberResponse {
@@ -65,7 +86,8 @@ message AcquireNumberResponse {
 }
 
 message ReleaseNumberRequest {
-  string order_id = 1;
+  // uid identifies the SmsOrder to release.
+  string uid = 1;
 }
 
 message ReleaseNumberResponse {
@@ -73,7 +95,7 @@ message ReleaseNumberResponse {
 }
 
 message GetOrderRequest {
-  string order_id = 1;
+  string uid = 1;
 }
 
 message GetOrderResponse {
@@ -95,7 +117,8 @@ message ListApplicationsResponse {
 }
 
 message StreamCodesRequest {
-  string order_id = 1;
+  // order_uid references the SmsOrder to stream codes for.
+  string order_uid = 1;
 }
 
 message StreamCodesResponse {

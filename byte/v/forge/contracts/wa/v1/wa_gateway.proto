@@ -12,28 +12,39 @@ enum WaAccountStatus {
   WA_ACCOUNT_STATUS_ARCHIVED = 4;
 }
 
+// WaAccount is a WhatsApp account managed by the gateway.
 message WaAccount {
-  string account_id = 1;
-  string phone_e164 = 2;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // phone is the account's number in E.164 format.
+  string phone = 2;
   WaAccountStatus status = 3;
-  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp create_time = 4;
 }
 
+// OutgoingMessage is a message dispatched from a managed WaAccount.
 message OutgoingMessage {
-  string account_id = 1;
-  string to_phone_e164 = 2;
+  // account_uid references the WaAccount sending the message.
+  string account_uid = 1;
+  // to_phone is the recipient number in E.164 format.
+  string to_phone = 2;
   string text = 3;
 }
 
+// IncomingMessage is a message received on a managed WaAccount.
 message IncomingMessage {
-  string message_id = 1;
-  string account_id = 2;
-  string from_phone_e164 = 3;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // account_uid references the WaAccount receiving the message.
+  string account_uid = 2;
+  // from_phone is the sender number in E.164 format.
+  string from_phone = 3;
   string text = 4;
-  google.protobuf.Timestamp received_at = 5;
+  google.protobuf.Timestamp receive_time = 5;
 }
 
 message CreateAccountRequest {
+  // phone_e164 is the account number to register; must be E.164.
   string phone_e164 = 1;
 }
 
@@ -42,7 +53,7 @@ message CreateAccountResponse {
 }
 
 message GetAccountRequest {
-  string account_id = 1;
+  string uid = 1;
 }
 
 message GetAccountResponse {
@@ -50,13 +61,14 @@ message GetAccountResponse {
 }
 
 message DeleteAccountRequest {
-  string account_id = 1;
+  string uid = 1;
 }
 
 message DeleteAccountResponse {}
 
 message CompleteRegistrationRequest {
-  string account_id = 1;
+  // uid identifies the WaAccount finalizing registration.
+  string uid = 1;
   string otp_code = 2;
 }
 
@@ -69,12 +81,14 @@ message SendMessageRequest {
 }
 
 message SendMessageResponse {
-  string message_id = 1;
-  google.protobuf.Timestamp sent_at = 2;
+  // message_uid is the system-assigned identifier of the dispatched message.
+  string message_uid = 1;
+  google.protobuf.Timestamp send_time = 2;
 }
 
 message StreamMessagesRequest {
-  string account_id = 1;
+  // account_uid references the WaAccount whose inbound stream is consumed.
+  string account_uid = 1;
 }
 
 message StreamMessagesResponse {

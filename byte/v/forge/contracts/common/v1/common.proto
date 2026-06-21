@@ -4,18 +4,22 @@ package byte.v.forge.contracts.common.v1;
 
 import "google/protobuf/timestamp.proto";
 
+// SecretRef is an opaque handle to a secret value redeemed out-of-band.
 message SecretRef {
-  string id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   string provider = 2;
   string purpose = 3;
-  google.protobuf.Timestamp expires_at = 4;
+  google.protobuf.Timestamp expire_time = 4;
 }
 
+// ArtifactRef points to an out-of-band artifact (file, screenshot, blob).
 message ArtifactRef {
-  string id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   string uri = 2;
   string content_type = 3;
   int64 size_bytes = 4;
   string purpose = 5;
-  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Timestamp expire_time = 6;
 }

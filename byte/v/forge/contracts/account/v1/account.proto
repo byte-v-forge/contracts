@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package byte.v.forge.contracts.account.v1;
 
+import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
 enum AccountStatus {
@@ -27,42 +28,106 @@ enum CredentialStatus {
   CREDENTIAL_STATUS_MISSING = 4;
 }
 
-message AccountSubject {
-  oneof identity {
-    string email = 1;
-    string phone_e164 = 2;
-    string external_id = 3;
-  }
+// PersonalName groups the principal's name components, mirroring SCIM 2.0
+// User.name.
+message PersonalName {
+  // display_name is a human-readable label, no uniqueness requirement.
+  string display_name = 1;
+  // given_name is the principal's given name (AIP-148; do not use first_name).
+  string given_name = 2;
+  // family_name is the principal's family name (AIP-148; do not use last_name).
+  string family_name = 3;
 }
 
+// ContactInfo groups the principal's canonical contact channels. Per-channel
+// verification state lives on the corresponding LinkedIdentity.
+message ContactInfo {
+  // primary_email is the canonical contact email.
+  string primary_email = 1;
+  // primary_phone is the canonical contact phone in E.164 format.
+  string primary_phone = 2;
+}
+
+// Profile groups display and localization preferences attached to an
+// Account. Mirrors OIDC standard claims (picture/locale/zoneinfo).
+message Profile {
+  // avatar_uri points to a profile picture, free-form URI.
+  string avatar_uri = 1;
+  // locale is a BCP-47 language tag (e.g. "en-US").
+  string locale = 2;
+  // time_zone is an IANA time zone name (e.g. "Asia/Shanghai").
+  string time_zone = 3;
+}
+
+// CredentialState exposes the status of a credential without returning the
+// credential value itself. Sensitive material must be redeemed via a
+// separate short-lived RPC.
 message CredentialState {
   CredentialKind kind = 1;
   CredentialStatus status = 2;
-  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp expire_time = 3;
 }
 
+// ProviderRef points to a federated identity on an external provider.
+message ProviderRef {
+  // provider identifies the upstream identity provider (e.g. "facebook",
+  // "google", "twitter", "phone", "password").
+  string provider = 1;
+  // subject is the principal's stable identifier on the provider
+  // (SCIM externalId / OIDC sub).
+  string subject = 2;
+}
+
+// VerifiedContact is a contact snapshot from a provider with its verification
+// flags.
+message VerifiedContact {
+  // email is the provider-side email address, free-form.
+  string email = 1;
+  // email_verified is true when the provider has verified email ownership.
+  bool email_verified = 2;
+  // phone is the provider-side phone number in E.164 format.
+  string phone = 3;
+  // phone_verified is true when the provider has verified phone ownership.
+  bool phone_verified = 4;
+}
+
+// Account is a unified principal tracked by the system. Federation to
+// external identity providers is modeled separately via LinkedIdentity,
+// allowing one Account to bind multiple providers (SCIM 2.0 / Auth0 style).
 message Account {
-  string account_id = 1;
-  string source = 2;
-  AccountSubject subject = 3;
-  AccountStatus status = 4;
-  CredentialState credential = 5;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  PersonalName name = 2;
+  ContactInfo contact = 3;
+  Profile profile = 4;
+  AccountStatus status = 5;
   map<string, string> labels = 6;
-  google.protobuf.Timestamp created_at = 7;
-  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp update_time = 8;
 }
 
-message AccountAction {
-  string action_id = 1;
-  string display_name = 2;
-  string source = 3;
-  string workflow_id = 4;
+// LinkedIdentity is a federated identity provider binding for an Account.
+// An Account can have any number of LinkedIdentity records (one per
+// provider account).
+message LinkedIdentity {
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // account_uid references the Account this identity is bound to.
+  string account_uid = 2;
+  ProviderRef provider_ref = 3;
+  // display_name is the provider-side display name, free-form.
+  string display_name = 4;
+  VerifiedContact contact = 5;
+  CredentialState credential = 6;
+  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp update_time = 8;
 }
 
 message CreateAccountRequest {
-  string source = 1;
-  AccountSubject subject = 2;
-  map<string, string> labels = 3;
+  PersonalName name = 1;
+  ContactInfo contact = 2;
+  Profile profile = 3;
+  map<string, string> labels = 4;
 }
 
 message CreateAccountResponse {
@@ -70,7 +135,7 @@ message CreateAccountResponse {
 }
 
 message GetAccountRequest {
-  string account_id = 1;
+  string uid = 1;
 }
 
 message GetAccountResponse {
@@ -78,10 +143,11 @@ message GetAccountResponse {
 }
 
 message ListAccountsRequest {
-  string source = 1;
-  AccountStatus status = 2;
-  uint32 page_size = 3;
-  string page_token = 4;
+  // filter follows AIP-160 expression syntax over Account fields
+  // (e.g. "status = ACTIVE AND profile.locale = 'en-US'").
+  string filter = 1;
+  int32 page_size = 2;
+  string page_token = 3;
 }
 
 message ListAccountsResponse {
@@ -90,9 +156,10 @@ message ListAccountsResponse {
 }
 
 message UpdateAccountRequest {
-  string account_id = 1;
-  AccountStatus status = 2;
-  map<string, string> labels = 3;
+  // account carries the new field values; only fields listed in update_mask
+  // are applied. account.uid identifies the resource (AIP-134).
+  Account account = 1;
+  google.protobuf.FieldMask update_mask = 2;
 }
 
 message UpdateAccountResponse {
@@ -100,18 +167,10 @@ message UpdateAccountResponse {
 }
 
 message DeleteAccountRequest {
-  string account_id = 1;
+  string uid = 1;
 }
 
 message DeleteAccountResponse {}
-
-message ListAccountActionsRequest {
-  string source = 1;
-}
-
-message ListAccountActionsResponse {
-  repeated AccountAction actions = 1;
-}
 
 service AccountService {
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
@@ -119,5 +178,50 @@ service AccountService {
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
   rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
-  rpc ListAccountActions(ListAccountActionsRequest) returns (ListAccountActionsResponse);
+}
+
+message LinkIdentityRequest {
+  // account_uid references the Account to attach the new identity to.
+  string account_uid = 1;
+  ProviderRef provider_ref = 2;
+  string display_name = 3;
+  VerifiedContact contact = 4;
+}
+
+message LinkIdentityResponse {
+  LinkedIdentity identity = 1;
+}
+
+message UnlinkIdentityRequest {
+  // uid identifies the LinkedIdentity to remove.
+  string uid = 1;
+}
+
+message UnlinkIdentityResponse {}
+
+message GetLinkedIdentityRequest {
+  string uid = 1;
+}
+
+message GetLinkedIdentityResponse {
+  LinkedIdentity identity = 1;
+}
+
+message ListLinkedIdentitiesRequest {
+  // account_uid references the Account whose identities are listed.
+  string account_uid = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListLinkedIdentitiesResponse {
+  repeated LinkedIdentity identities = 1;
+  string next_page_token = 2;
+}
+
+service LinkedIdentityService {
+  rpc LinkIdentity(LinkIdentityRequest) returns (LinkIdentityResponse);
+  rpc UnlinkIdentity(UnlinkIdentityRequest) returns (UnlinkIdentityResponse);
+  rpc GetLinkedIdentity(GetLinkedIdentityRequest) returns (GetLinkedIdentityResponse);
+  rpc ListLinkedIdentities(ListLinkedIdentitiesRequest) returns (ListLinkedIdentitiesResponse);
 }

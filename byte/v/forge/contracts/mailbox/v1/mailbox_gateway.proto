@@ -19,35 +19,45 @@ enum EmailSignalKind {
   EMAIL_SIGNAL_KIND_VERIFICATION_LINK = 3;
 }
 
+// Mailbox is a managed inbox the gateway syncs on behalf of a caller.
 message Mailbox {
-  string mailbox_id = 1;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
   string email_address = 2;
-  string provider_key = 3;
+  // provider identifies the mailbox upstream (e.g. "gmail", "outlook").
+  string provider = 3;
   MailboxAuthStatus auth_status = 4;
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp last_synced_at = 6;
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp last_sync_time = 6;
 }
 
+// EmailSignal is an extracted high-value indicator from a message (OTP,
+// magic link, verification link, etc.).
 message EmailSignal {
-  string message_id = 1;
+  // message_uid references the InboxMessage the signal was extracted from.
+  string message_uid = 1;
   EmailSignalKind kind = 2;
   string value = 3;
   double confidence = 4;
   string evidence_preview = 5;
 }
 
+// InboxMessage is a synced inbox message with extracted signals.
 message InboxMessage {
-  string message_id = 1;
-  string mailbox_id = 2;
+  // uid is the system-assigned short opaque identifier (nanoid). Output only.
+  string uid = 1;
+  // mailbox_uid references the owning Mailbox.
+  string mailbox_uid = 2;
   string subject = 3;
   string from_address = 4;
-  google.protobuf.Timestamp received_at = 5;
+  google.protobuf.Timestamp receive_time = 5;
   repeated EmailSignal signals = 6;
 }
 
 message RegisterMailboxRequest {
   string email_address = 1;
-  string provider_key = 2;
+  // provider identifies the mailbox upstream (e.g. "gmail", "outlook").
+  string provider = 2;
 }
 
 message RegisterMailboxResponse {
@@ -55,7 +65,7 @@ message RegisterMailboxResponse {
 }
 
 message GetMailboxRequest {
-  string mailbox_id = 1;
+  string uid = 1;
 }
 
 message GetMailboxResponse {
@@ -63,8 +73,10 @@ message GetMailboxResponse {
 }
 
 message ListMailboxesRequest {
-  string provider_key = 1;
-  uint32 page_size = 2;
+  // filter follows AIP-160 expression syntax over Mailbox fields
+  // (e.g. "provider = 'gmail'").
+  string filter = 1;
+  int32 page_size = 2;
   string page_token = 3;
 }
 
@@ -74,14 +86,15 @@ message ListMailboxesResponse {
 }
 
 message DeleteMailboxRequest {
-  string mailbox_id = 1;
+  string uid = 1;
 }
 
 message DeleteMailboxResponse {}
 
 message ListInboxMessagesRequest {
-  string mailbox_id = 1;
-  uint32 page_size = 2;
+  // mailbox_uid references the Mailbox to list messages from.
+  string mailbox_uid = 1;
+  int32 page_size = 2;
   string page_token = 3;
 }
 
@@ -91,7 +104,8 @@ message ListInboxMessagesResponse {
 }
 
 message StreamSignalsRequest {
-  string mailbox_id = 1;
+  // mailbox_uid references the Mailbox to stream signals for.
+  string mailbox_uid = 1;
   repeated EmailSignalKind kinds = 2;
 }
 
